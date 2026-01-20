@@ -1,8 +1,8 @@
 """MCP tools for Slack operations."""
 
-from typing import Any, Optional
+from typing import Any
 from mcp.types import Tool, TextContent
-from slack_mcp_server.slack_client import SlackClient
+from slack_mcp.slack_client import SlackClient, SlackMCPError
 
 
 def get_tools(slack_client: SlackClient) -> list[Tool]:
@@ -116,7 +116,8 @@ async def handle_tool_call(tool_name: str, arguments: dict[str, Any], slack_clie
 
     try:
         if tool_name == "slack_list_channels":
-            channels = slack_client.get_channels()
+            # Use list_channels_all() to get all channels (handles pagination)
+            channels = slack_client.list_channels_all()
             result = [
                 {
                     "id": ch["id"],
@@ -147,12 +148,13 @@ async def handle_tool_call(tool_name: str, arguments: dict[str, Any], slack_clie
         elif tool_name == "slack_send_message":
             channel = arguments["channel"]
             text = arguments["text"]
-            response = slack_client.send_message(channel, text)
+            # Use post_message() instead of send_message()
+            response = slack_client.post_message(channel, text)
             result = {
-                "ok": response["ok"],
-                "channel": response["channel"],
-                "ts": response["ts"],
-                "message": response["message"],
+                "ok": response.get("ok", False),
+                "channel": response.get("channel"),
+                "ts": response.get("ts"),
+                "message": response.get("message", {}),
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -172,7 +174,8 @@ async def handle_tool_call(tool_name: str, arguments: dict[str, Any], slack_clie
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif tool_name == "slack_list_users":
-            users = slack_client.get_users()
+            # Use get_users_all() to get all users (handles pagination)
+            users = slack_client.get_users_all()
             result = [
                 {
                     "id": user["id"],
@@ -205,5 +208,9 @@ async def handle_tool_call(tool_name: str, arguments: dict[str, Any], slack_clie
         else:
             return [TextContent(type="text", text=f"Unknown tool: {tool_name}")]
 
+    except SlackMCPError as e:
+        # Handle Slack-specific errors with user-friendly messages
+        return [TextContent(type="text", text=f"Slack error: {str(e)}")]
     except Exception as e:
+        # Handle unexpected errors
         return [TextContent(type="text", text=f"Error: {str(e)}")]
