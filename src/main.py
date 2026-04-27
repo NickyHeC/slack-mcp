@@ -23,7 +23,7 @@ from dedalus_mcp.auth import Connection, SecretKeys
 load_dotenv()
 
 slack_connection = Connection(
-    name="slack",
+    name="slack-mcp",
     secrets=SecretKeys(token="SLACK_ACCESS_TOKEN"),
     base_url="https://slack.com/api",
     auth_header_format="Bearer {api_key}",
