@@ -9,7 +9,6 @@ Supports both bot tokens (xoxb-) and user tokens (xoxp-). Search methods
 """
 
 from typing import Any
-from urllib.parse import urlencode
 
 from dedalus_mcp import tool, get_context, HttpMethod, HttpRequest
 from pydantic import BaseModel
@@ -31,12 +30,19 @@ class SlackResult(BaseModel):
 
 
 async def slack_get(path: str, params: dict | None = None) -> dict:
-    """Dispatch an authenticated GET request to the Slack API through DAuth."""
+    """Dispatch an authenticated GET request to the Slack API through DAuth.
+
+    Params are joined as raw key=value pairs — HttpRequest.validate_path
+    handles percent-encoding of unsafe chars while preserving commas and
+    other API-value chars.  Using urlencode here would cause double-encoding
+    because validate_path re-encodes the query string.
+    """
     ctx = get_context()
     if params:
         filtered = {k: v for k, v in params.items() if v is not None}
         if filtered:
-            path = f"{path}?{urlencode(filtered)}"
+            qs = "&".join(f"{k}={v}" for k, v in filtered.items())
+            path = f"{path}?{qs}"
     req = HttpRequest(method=HttpMethod.GET, path=path)
     resp = await ctx.dispatch(slack_connection, req)
     if resp.success and resp.response is not None:
